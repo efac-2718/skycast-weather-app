@@ -31,18 +31,15 @@ const forecastBody = document.getElementById("forecastBody");
 // Return the appropriate description.
 //
 function describeWeatherCode(code) {
-    switch (code) {
-        case 0: return "Clear sky"
-        case 1-3: return "Partly cloudy"
-        case 45:
-        case 48: return "Fog"
-        case 51-57: return "Drizzle"
-        case 61-67: return "Rain"
-        case 71-77: return "snow"
-        case 80-82: return "Rain showers"
-        case 95-99: return "Thunderstorm"
-        default : return "Unknown"
-    }
+  if (code === 0) return "Clear sky";
+  if (code >= 1 && code <= 3) return "Partly cloudy";
+  if (code === 45 || code === 48) return "Fog";
+  if (code >= 51 && code <= 57) return "Drizzle";
+  if (code >= 61 && code <= 67) return "Rain";
+  if (code >= 71 && code <= 77) return "Snow";
+  if (code >= 80 && code <= 82) return "Rain showers";
+  if (code >= 95 && code <= 99) return "Thunderstorm";
+  return "Unknown";
 }
 
 // ============================================================
@@ -59,11 +56,8 @@ function describeWeatherCode(code) {
 // 3. Remove the "error" class when isError is false.
 //
 function setStatus(message, isError = false) {
-    if(isError) {
-        statusMsg.classList.add("error")
-    } else {
-        statusMsg.classList.remove("error")
-    }
+  statusMsg.textContent = message;
+  statusMsg.classList.toggle("error", isError);
 }
 
 // ============================================================
@@ -157,8 +151,18 @@ return res.json();
 //    the current weather section becomes visible.
 //
 function renderCurrentWeather(place, weatherData) {
-    const data = weatherData.current_weather;
+  const current = weatherData.current_weather;
 
+  if (!current) {
+    return;
+  }
+
+  const locationLabel = place.country ? `${place.name}, ${place.country}` : place.name;
+  cityNameEl.textContent = locationLabel;
+  tempEl.textContent = `${Math.round(current.temperature)} °C`;
+  windEl.textContent = `${Math.round(current.windspeed)} km/h`;
+  conditionEl.textContent = describeWeatherCode(current.weathercode);
+  currentCard.classList.remove("hidden");
 }
 
 // ============================================================
@@ -202,95 +206,88 @@ function renderCurrentWeather(place, weatherData) {
 //   daily.temperature_2m_min
 //   daily.precipitation_sum
 //
-// function renderForecastTable(daily) {
-//   YOUR CODE HERE
-// }
+function renderForecastTable(daily) {
+  forecastBody.innerHTML = "";
+
+  const dates = daily.time || [];
+  const codes = daily.weathercode || [];
+  const highs = daily.temperature_2m_max || [];
+  const lows = daily.temperature_2m_min || [];
+  const precip = daily.precipitation_sum || [];
+
+  dates.forEach((dateString, index) => {
+    const row = document.createElement("tr");
+    const precipitationValue = Number(precip[index] ?? 0);
+
+    if (precipitationValue > 0) {
+      row.classList.add("rainy");
+    }
+
+    const dayLabel = new Date(dateString).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+    row.innerHTML = `
+      <td>${dayLabel}</td>
+      <td>${describeWeatherCode(codes[index])}</td>
+      <td>${Math.round(highs[index])} °C</td>
+      <td>${Math.round(lows[index])} °C</td>
+      <td>${precipitationValue.toFixed(1)} mm</td>
+    `;
+
+    forecastBody.appendChild(row);
+  });
+}
 
 // ============================================================
 // TASK 5 — HANDLE SEARCH
 // ============================================================
 
-// TODO:
-// Complete the search function.
-//
-// Requirements:
-//
-// 1. Get the value entered into cityInput.
-//
-// 2. Remove unnecessary spaces using trim().
-//
-// 3. If the input is empty:
-//    - Display "Please type a city name."
-//    - Display it as an error.
-//    - Stop the function using return.
-//
-// 4. Hide the current weather card before a new search.
-//
-// 5. Clear the existing forecast table.
-//
-// 6. Display "Loading…" while the API requests are running.
-//
-// 7. Use geocodeCity(city) to obtain the location.
-//
-// 8. Use fetchForecast(latitude, longitude) to obtain
-//    weather information.
-//
-// 9. Call renderCurrentWeather() to display the current weather.
-//
-// 10. Call renderForecastTable() to display the forecast.
-//
-// 11. Clear the status message after a successful search.
-//
-// 12. Use try/catch to handle errors.
-//
-// 13. If an error occurs, display the error message using
-//     setStatus().
-//
-//
 async function handleSearch() {
-  var input = cityInput
- }
+  const city = cityInput.value.trim();
+
+  if (!city) {
+    setStatus("Please type a city name.", true);
+    return;
+  }
+
+  currentCard.classList.add("hidden");
+  forecastBody.innerHTML = "";
+  setStatus("Loading…");
+
+  try {
+    const place = await geocodeCity(city);
+    const weatherData = await fetchForecast(place.latitude, place.longitude);
+
+    renderCurrentWeather(place, weatherData);
+    renderForecastTable(weatherData.daily);
+    setStatus("");
+  } catch (error) {
+    setStatus(error.message || "Something went wrong. Please try again.", true);
+  }
+}
 
 // ============================================================
 // TASK 6 — SEARCH BUTTON EVENT
 // ============================================================
 
-// TODO:
-// Add an event listener to searchBtn.
-//
-// When the button is clicked, handleSearch() should execute.
-//
-// Hint:
-//   addEventListener("click", ...)
-searchBtn.addEventListener('click', handleSearch())
+searchBtn.addEventListener("click", handleSearch);
+
 // ============================================================
 // TASK 7 — ENTER KEY SUPPORT
 // ============================================================
 
-// TODO:
-// Add a keydown event listener to cityInput.
-//
-// When the user presses the Enter key,
-// handleSearch() should execute.
-//
-// Hint:
-//   e.key === "Enter"
-cityInput.addEventListener('keypress', function(event) {
-    if(event.key === "Enter") {
-        handleSearch();
-    }
+cityInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    handleSearch();
+  }
 });
+
 // ============================================================
 // STRETCH GOAL — HIGHLIGHT RAINY DAYS
 // ============================================================
 
-// Optional:
-//
-// If the precipitation value for a day is greater than 0,
-// add the CSS class "rainy" to that table row.
-//
-// Hint:
-//   row.classList.add("rainy");
-//
-// This feature is optional and can be attempted after
-// completing Tasks 1–7.
+// Rainy rows are marked in renderForecastTable when precipitation is greater than 0.
